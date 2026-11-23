@@ -9,6 +9,7 @@ tldr-scanner
 # Local data, caches, and SQLite databases
 .cache/
 .data/
+.tldr-scanner/
 *.db
 *.db-shm
 *.db-wal

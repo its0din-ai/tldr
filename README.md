@@ -26,8 +26,8 @@ Free data sources only:
 - **Price enrichment** with `-best-price`: cheapest registration and renewal
   from tld-list.com, cached in SQLite.
 - **Optional FlareProx support** via a gitignored `proxylist.txt`.
-- **SQLite cache** in `.data/`: available domains and connectivity checks for
-  48 hours, taken domains for 7 days.
+- **SQLite cache** in the user data directory: available domains and
+  connectivity checks for 48 hours, taken domains for 7 days.
 - Linux `amd64`/`arm64` binaries built by GitHub Actions.
 
 ## Install
@@ -236,8 +236,8 @@ With `-best-price`, final results are sorted by **cheapest renewal**, then
 cheapest registration, then domain. Results without a known renewal price go
 last. This applies to the terminal table, TUI results, JSONL, and CSV.
 
-Prices are stored per TLD in `.data/tldr-scanner.db` and reused for **24
-hours**. The database has an `available_with_prices` view for easy queries:
+Prices are stored per TLD in the SQLite database and reused for **24 hours**.
+The database has an `available_with_prices` view for easy queries:
 
 ```sql
 SELECT * FROM available_with_prices;
@@ -267,12 +267,47 @@ network that can reach tld-list directly. The official API is preferred where
 possible; prices are cached to be polite. Prices are standard TLD prices from
 tld-list.com; premium names and registrar-specific promos can differ.
 
-## SQLite cache
+## Data location and SQLite cache
 
-Cache data is stored in `.data/`:
+By default, local data lives in the per-user XDG data directory:
 
-- `.data/tldr-scanner.db` — SQLite database (gitignored)
-- `.data/tlds.txt`, `.data/rdap.json` — bootstrap files
+```
+$XDG_DATA_HOME/tldr-scanner
+# usually:
+~/.local/share/tldr-scanner
+```
+
+Files:
+
+- `tldr-scanner.db` — SQLite database
+- `tlds.txt`, `rdap.json` — bootstrap files
+
+This is the right place for a CLI. `/opt` is for system-wide software, and
+`/var/lib` is for state owned by system services; neither is appropriate for a
+normal per-user command and both normally require root. If you do want a
+system-wide shared cache, use an explicit directory with appropriate ownership:
+
+```bash
+sudo install -d -o tldr -g tldr /var/lib/tldr-scanner
+tldr -data-dir /var/lib/tldr-scanner
+```
+
+Overrides:
+
+```bash
+# Custom data directory (database + bootstrap files)
+./bin/tldr -data-dir /tmp/tldr-data
+
+# Environment equivalent
+TLDR_DATA_DIR=/tmp/tldr-data ./bin/tldr
+
+# Override only the SQLite database path
+./bin/tldr -cache /tmp/tldr.db
+```
+
+`XDG_DATA_HOME` is honored automatically. When running from a repository and
+you want the old project-local layout, use `-data-dir .data`; `.data/` is
+gitignored.
 
 The database stores:
 
@@ -386,7 +421,7 @@ internal/buildinfo/      version metadata (ldflags)
 .github/workflows/       linux amd64/arm64 build and release workflow
 proxylist.example.txt    committed proxy example
 proxylist.txt            local proxy list (gitignored)
-.data/                   local SQLite DB and bootstrap files (gitignored)
+<user data dir>/         SQLite DB and bootstrap files (XDG data dir)
 ```
 
 ## Development

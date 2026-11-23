@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +28,8 @@ func ParseFlags(args []string) (ParseResult, error) {
 		preflightTimeout float64
 		charsetRaw       string
 	)
+
+	defaultDataDir := scanner.DefaultDataDir()
 
 	fs := flag.NewFlagSet("tldr", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
@@ -73,8 +76,10 @@ func ParseFlags(args []string) (ParseResult, error) {
 		"skip WHOIS confirmation/fallback")
 	fs.Float64Var(&whoisDelaySecs, "whois-delay", 0.2,
 		"seconds to wait after each WHOIS query to a host")
-	fs.StringVar(&cfg.CachePath, "cache", ".data/tldr-scanner.db",
-		"SQLite cache path")
+	fs.StringVar(&cfg.DataDir, "data-dir", defaultDataDir,
+		"data directory for the SQLite database and bootstrap files")
+	fs.StringVar(&cfg.CachePath, "cache", "",
+		"SQLite database path (defaults to <data-dir>/tldr-scanner.db)")
 	fs.Int64Var(&cacheTTLSeconds, "cache-ttl", 7*86400,
 		"how long a 'taken' result stays cached, in seconds")
 	fs.BoolVar(&cfg.BestPrice, "best-price", false,
@@ -115,6 +120,19 @@ func ParseFlags(args []string) (ParseResult, error) {
 
 	if err := fs.Parse(args); err != nil {
 		return result, err
+	}
+	if cfg.DataDir == "" {
+		cfg.DataDir = defaultDataDir
+	}
+
+	cacheSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "cache" {
+			cacheSet = true
+		}
+	})
+	if !cacheSet {
+		cfg.CachePath = filepath.Join(cfg.DataDir, "tldr-scanner.db")
 	}
 
 	if cfg.MinLabel < 1 || cfg.MinLabel > 63 {

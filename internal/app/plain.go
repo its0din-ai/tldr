@@ -53,6 +53,7 @@ func (p *plainPrinter) Handle(event scanner.Event) {
 		} else {
 			fmt.Fprintln(p.out, "HTTP: direct (no proxy file)")
 		}
+		fmt.Fprintf(p.out, "Data: %s\n", plan.DataDir)
 		if plan.Mode == "search" {
 			fmt.Fprintf(p.out, "Targets: %d domains, %d concurrent lookups\n",
 				plan.SearchTotal, plan.Concurrency)

@@ -2,6 +2,8 @@ package scanner
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,7 +15,6 @@ const (
 	ianaTLDsURL  = "https://data.iana.org/TLD/tlds-alpha-by-domain.txt"
 	ianaRDAPURL  = "https://data.iana.org/rdap/dns.json"
 	whoisIANA    = "whois.iana.org"
-	cacheDir     = ".data"
 	bootstrapTTL = 7 * 24 * time.Hour
 	maxDNSLabel  = 63
 )
@@ -40,6 +41,7 @@ type Config struct {
 	NoWHOIS     bool
 	WHOISDelay  time.Duration
 
+	DataDir   string
 	CachePath string
 	CacheTTL  time.Duration
 	SkipCache bool
@@ -69,6 +71,8 @@ type Config struct {
 type Plan struct {
 	Mode          string
 	BestPrice     bool
+	DataDir       string
+	CachePath     string
 	Sequential    string
 	SearchLabel   string
 	MaxTLDLen     int
@@ -200,4 +204,20 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 func userAgent() string {
 	return "tldr-scanner/" + buildinfo.Version +
 		" (domain availability scanner; +https://github.com/its0din-ai/tldr)"
+}
+
+// DefaultDataDir returns the per-user data directory. It follows the XDG
+// Base Directory spec and never requires root privileges.
+func DefaultDataDir() string {
+	if dir := os.Getenv("TLDR_DATA_DIR"); dir != "" {
+		return dir
+	}
+	if dir := os.Getenv("XDG_DATA_HOME"); dir != "" {
+		return filepath.Join(dir, "tldr-scanner")
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		return filepath.Join(home, ".local", "share", "tldr-scanner")
+	}
+	// Last resort when HOME is unavailable.
+	return ".tldr-scanner"
 }

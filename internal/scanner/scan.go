@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"math/big"
@@ -9,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -45,6 +47,12 @@ type Scanner struct {
 }
 
 func New(ctx context.Context, cfg Config, emit *Emitter) (*Scanner, error) {
+	if cfg.DataDir == "" {
+		cfg.DataDir = DefaultDataDir()
+	}
+	if cfg.CachePath == "" {
+		cfg.CachePath = filepath.Join(cfg.DataDir, "tldr-scanner.db")
+	}
 	proxyPool := NewProxyPool(cfg.Proxies)
 	transport := newHTTPTransport()
 	bootstrapClient := &http.Client{
@@ -52,7 +60,7 @@ func New(ctx context.Context, cfg Config, emit *Emitter) (*Scanner, error) {
 		Transport: transport,
 	}
 
-	allTLDs, err := loadTLDs(ctx, bootstrapClient, proxyPool, cacheDir)
+	allTLDs, err := loadTLDs(ctx, bootstrapClient, proxyPool, cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +75,7 @@ func New(ctx context.Context, cfg Config, emit *Emitter) (*Scanner, error) {
 			return nil, err
 		}
 	}
-	rdapMap, err := loadRDAPMap(ctx, bootstrapClient, proxyPool, cacheDir)
+	rdapMap, err := loadRDAPMap(ctx, bootstrapClient, proxyPool, cfg.DataDir)
 	if err != nil {
 		return nil, err
 	}
@@ -166,6 +174,8 @@ func (s *Scanner) Plan() Plan {
 	return Plan{
 		Mode:          mode,
 		BestPrice:     s.cfg.BestPrice,
+		DataDir:       s.cfg.DataDir,
+		CachePath:     s.cfg.CachePath,
 		Sequential:    s.cfg.Sequential,
 		SearchLabel:   s.cfg.Search,
 		MaxTLDLen:     s.cfg.MaxTLDLen,
@@ -367,14 +377,15 @@ func (s *Scanner) checkProxy(
 	index int,
 ) (CheckStatus, string, time.Duration) {
 	template := s.proxy.Templates()[index]
-	if cached, ok := s.cache.GetCheck(kindProxy, template); ok {
+	cacheKey := fmt.Sprintf("%x", sha256.Sum256([]byte(template)))
+	if cached, ok := s.cache.GetCheck(kindProxy, cacheKey); ok {
 		return CheckStatus(cached.Status), cached.Detail + " (cached)", cached.Latency
 	}
 
 	start := time.Now()
 	finish := func(status CheckStatus, detail string) (CheckStatus, string, time.Duration) {
 		latency := time.Since(start)
-		s.cache.PutCheck(kindProxy, template, string(status), detail, latency)
+		s.cache.PutCheck(kindProxy, cacheKey, string(status), detail, latency)
 		return status, detail, latency
 	}
 
@@ -1120,6 +1131,7 @@ func (s *Scanner) DryRun(w io.Writer) {
 	fmt.Fprintf(w, "Stop after: %d available, %d checks max, %d concurrent lookups\n",
 		s.cfg.Limit, s.cfg.MaxChecks, s.cfg.Concurrency)
 	fmt.Fprintf(w, "Seed: %d\n", s.cfg.Seed)
+	fmt.Fprintf(w, "Data: %s\n", s.cfg.DataDir)
 	if s.cfg.Sequential != "" {
 		fmt.Fprintf(w, "Sequential prefix: %s\n", s.cfg.Sequential)
 	}
@@ -1158,6 +1170,7 @@ func (s *Scanner) dryRunSearch(w io.Writer) {
 	}
 	fmt.Fprintf(w, "Targets: %d domains, %d concurrent lookups\n",
 		plan.SearchTotal, s.cfg.Concurrency)
+	fmt.Fprintf(w, "Data: %s\n", s.cfg.DataDir)
 	if s.proxy.Enabled() {
 		fmt.Fprintf(w, "HTTP: %d proxy endpoints from %s\n",
 			s.proxy.Len(), s.cfg.ProxyFile)

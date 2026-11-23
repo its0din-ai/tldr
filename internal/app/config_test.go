@@ -128,3 +128,51 @@ func TestParseFlagsProxyFile(t *testing.T) {
 		t.Errorf("got %d proxies, want 2", len(parsed.Config.Proxies))
 	}
 }
+
+func TestDataDirDefaults(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "tldr-data")
+	t.Setenv("TLDR_DATA_DIR", dataDir)
+
+	parsed, err := ParseFlags(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Config.DataDir != dataDir {
+		t.Errorf("data dir = %q, want %q", parsed.Config.DataDir, dataDir)
+	}
+	wantCache := filepath.Join(dataDir, "tldr-scanner.db")
+	if parsed.Config.CachePath != wantCache {
+		t.Errorf("cache path = %q, want %q", parsed.Config.CachePath, wantCache)
+	}
+}
+
+func TestDataDirFlagMovesCache(t *testing.T) {
+	t.Setenv("TLDR_DATA_DIR", filepath.Join(t.TempDir(), "ignored"))
+	dataDir := filepath.Join(t.TempDir(), "custom-data")
+
+	parsed, err := ParseFlags([]string{"-data-dir", dataDir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Config.DataDir != dataDir {
+		t.Errorf("data dir = %q, want %q", parsed.Config.DataDir, dataDir)
+	}
+	if want := filepath.Join(dataDir, "tldr-scanner.db"); parsed.Config.CachePath != want {
+		t.Errorf("cache path = %q, want %q", parsed.Config.CachePath, want)
+	}
+}
+
+func TestExplicitCachePathWins(t *testing.T) {
+	dataDir := filepath.Join(t.TempDir(), "data")
+	cachePath := filepath.Join(t.TempDir(), "custom.db")
+	parsed, err := ParseFlags([]string{
+		"-data-dir", dataDir,
+		"-cache", cachePath,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Config.CachePath != cachePath {
+		t.Errorf("cache path = %q, want %q", parsed.Config.CachePath, cachePath)
+	}
+}

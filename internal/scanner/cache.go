@@ -48,7 +48,7 @@ func NewCache(
 	if path == "" {
 		return &Cache{takenTTL: takenTTL, disabled: true}, nil
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
 	db, err := sql.Open("sqlite", path)
@@ -131,6 +131,9 @@ SELECT d.domain, d.method, d.checked_at,
 	); err != nil {
 		db.Close()
 		return nil, err
+	}
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		_ = os.Chmod(path+suffix, 0o600)
 	}
 	return &Cache{
 		db:        db,
