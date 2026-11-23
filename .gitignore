@@ -1,0 +1,33 @@
+# Local environments and build artifacts
+.venv/
+bin/
+dist/
+tldr
+tldr-scanner
+*.test
+
+# Local data, caches, and SQLite databases
+.cache/
+.data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+results.jsonl
+results.csv
+
+# Local proxy configuration (never commit credentials/endpoints)
+proxylist.txt
+.env
+.env.*
+
+# Editor and OS noise
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# Python leftovers from the earlier implementation
+__pycache__/
+*.pyc

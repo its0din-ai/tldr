@@ -1,0 +1,20 @@
+# Example proxy list for tldr-scanner.
+#
+# Copy this file to proxylist.txt (which is gitignored) and add your own
+# FlareProx worker endpoints:
+#
+#   python3 flareprox.py list
+#
+# Accepted formats (one endpoint per line):
+#
+#   https://my-worker-1.my-subdomain.workers.dev
+#   https://my-worker-2.my-subdomain.workers.dev
+#   URL: https://my-worker-3.my-subdomain.workers.dev
+#   https://my-worker-4.my-subdomain.workers.dev/?url={url}
+#
+# Then run:
+#
+#   tldr --proxyfile proxylist.txt
+#
+https://my-worker-1.my-subdomain.workers.dev
+https://my-worker-2.my-subdomain.workers.dev

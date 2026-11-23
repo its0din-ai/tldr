@@ -1,0 +1,89 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: linux-${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build
+        env:
+          GOOS: linux
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p dist
+          VERSION="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then
+            VERSION="dev-${GITHUB_SHA:0:7}"
+          fi
+          COMMIT="${GITHUB_SHA:0:7}"
+          DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          go build -trimpath -buildvcs=false \
+            -ldflags "-s -w \
+              -X github.com/its0din-ai/tldr/internal/buildinfo.Version=${VERSION} \
+              -X github.com/its0din-ai/tldr/internal/buildinfo.Commit=${COMMIT} \
+              -X github.com/its0din-ai/tldr/internal/buildinfo.Date=${DATE}" \
+            -o "dist/tldr-linux-${{ matrix.arch }}" \
+            .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tldr-linux-${{ matrix.arch }}
+          path: dist/tldr-linux-${{ matrix.arch }}
+          if-no-files-found: error
+
+  release:
+    name: release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: tldr-linux-*
+          merge-multiple: true
+          path: dist
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum tldr-linux-* > SHA256SUMS.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/tldr-linux-amd64
+            dist/tldr-linux-arm64
+            dist/SHA256SUMS.txt
+          generate_release_notes: true
